@@ -1,4 +1,5 @@
 # DiffRoom
+<img width="500" height="500" alt="DIFFROOM" src="https://github.com/user-attachments/assets/3e0dd4af-f46e-47f8-92a6-620faad2e1bc" />
 
 Local-first review workspace for Git diffs and coding agents.
 
