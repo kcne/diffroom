@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+*.egg-info/
+backend/dist/
+backend/build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Frontend build output bundled into the wheel (built, not tracked)
+backend/src/diffroom/static/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local-only planning docs (only README.md is committed)
+docs/
+
+# DiffRoom local state (inside .git, but ignore if it ever leaks)
+.diffroom/
