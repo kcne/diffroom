@@ -52,3 +52,25 @@ def test_run_failure_raises_git_error_with_stderr(repo: Path) -> None:
     with pytest.raises(GitError) as excinfo:
         GitClient(repo).run("cat-file", "-e", "deadbeef")
     assert str(excinfo.value)
+
+
+def _commit_file(repo: Path, name: str, content: str) -> None:
+    (repo / name).write_text(content, encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", name], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", name], check=True, capture_output=True)
+
+
+def test_diff_unstaged_returns_working_tree_diff(repo: Path) -> None:
+    _commit_file(repo, "foo.txt", "first\nsecond\nthird\n")
+    (repo / "foo.txt").write_text("first\nsecond changed\nthird\n", encoding="utf-8")
+
+    diff = GitClient(repo).diff_unstaged()
+
+    assert "diff --git a/foo.txt b/foo.txt" in diff
+    assert "-second" in diff
+    assert "+second changed" in diff
+
+
+def test_diff_unstaged_clean_tree_is_empty(repo: Path) -> None:
+    _commit_file(repo, "foo.txt", "first\n")
+    assert GitClient(repo).diff_unstaged() == ""

@@ -56,3 +56,12 @@ class GitClient:
     def current_branch(self) -> str:
         """Return the checked-out branch name (empty when detached/unborn)."""
         return self.run("branch", "--show-current")
+
+    def diff_unstaged(self) -> str:
+        """Return the unstaged diff (working tree vs index) as raw text.
+
+        Uses ``git diff --no-color`` so config-forced color never corrupts the
+        parser; context lines follow the user's git default. Returns ``""`` for
+        a clean working tree.
+        """
+        return self.run("diff", "--no-color")

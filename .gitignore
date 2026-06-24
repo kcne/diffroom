@@ -14,6 +14,9 @@ backend/build/
 node_modules/
 frontend/dist/
 
+# Derived OpenAPI schema (intermediate for TS codegen; api-types.ts is committed)
+frontend/openapi.json
+
 # Frontend build output bundled into the wheel (built, not tracked)
 backend/src/diffroom/static/
 

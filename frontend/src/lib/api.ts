@@ -1,4 +1,5 @@
 import { getToken } from "./token";
+import type { components } from "./api-types";
 
 export interface Health {
   status: string;
@@ -6,6 +7,11 @@ export interface Health {
   repo_root: string;
   branch: string;
 }
+
+export type DiffResponse = components["schemas"]["DiffResponse"];
+export type DiffFile = components["schemas"]["DiffFile"];
+export type Hunk = components["schemas"]["Hunk"];
+export type Row = components["schemas"]["Row"];
 
 /** Fetch wrapper that attaches the session token to every request. */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
@@ -23,4 +29,12 @@ export async function fetchHealth(): Promise<Health> {
     throw new Error(`health request failed: ${response.status}`);
   }
   return (await response.json()) as Health;
+}
+
+export async function fetchDiff(): Promise<DiffResponse> {
+  const response = await apiFetch("/api/diff");
+  if (!response.ok) {
+    throw new Error(`diff request failed: ${response.status}`);
+  }
+  return (await response.json()) as DiffResponse;
 }
