@@ -29,6 +29,11 @@ check:
 build-frontend:
     cd frontend && pnpm build
 
+# Regenerate the TypeScript API contract from the backend's OpenAPI schema
+gen-types:
+    cd backend && uv run python -m diffroom.openapi > ../frontend/openapi.json
+    cd frontend && pnpm gen:types
+
 # Build the wheel (frontend first, then the Python package with bundled assets)
 build: build-frontend
     cd backend && uv build

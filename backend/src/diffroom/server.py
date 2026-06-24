@@ -9,7 +9,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .git.commands import GitClient
+from .git.commands import GitClient, NotARepositoryError
+from .git.diff_parser import parse_diff
+from .models import DiffResponse, to_diff_response
 
 DEFAULT_STATIC_DIR = Path(__file__).parent / "static"
 
@@ -46,6 +48,15 @@ def create_app(
             "repo_root": str(git.repo_root()),
             "branch": git.current_branch(),
         }
+
+    @app.get("/api/diff")
+    def diff() -> DiffResponse:
+        try:
+            git.repo_root()
+            raw = git.diff_unstaged()
+        except NotARepositoryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return to_diff_response("unstaged", parse_diff(raw))
 
     assets_dir = static / "assets"
     if assets_dir.is_dir():

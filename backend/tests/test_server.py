@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -67,3 +68,67 @@ def test_placeholder_when_no_build(tmp_path: Path) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "No frontend build found" in response.text
+
+
+def _init_repo(path: Path) -> None:
+    subprocess.run(["git", "init", "-b", "main", str(path)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.email", "t@t.t"], check=True)
+    subprocess.run(["git", "-C", str(path), "config", "user.name", "Test"], check=True)
+
+
+def _commit_file(repo: Path, name: str, content: str) -> None:
+    (repo / name).write_text(content, encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", name], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", name], check=True, capture_output=True)
+
+
+def _repo_client(repo: Path, static_dir: Path) -> TestClient:
+    return TestClient(create_app(static_dir=static_dir, git_client=GitClient(repo)))
+
+
+def test_diff_endpoint_returns_structured_unstaged_diff(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    _commit_file(repo, "foo.txt", "first\nsecond\nthird\n")
+    (repo / "foo.txt").write_text("first\nsecond changed\nthird\n", encoding="utf-8")
+    static = tmp_path / "static"
+    static.mkdir()
+
+    response = _repo_client(repo, static).get("/api/diff")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scope"] == "unstaged"
+    assert len(body["files"]) == 1
+    file = body["files"][0]
+    assert file["path"] == "foo.txt"
+    contents = [row["content"] for hunk in file["hunks"] for row in hunk["rows"]]
+    assert "second changed" in contents
+    types = {row["type"] for hunk in file["hunks"] for row in hunk["rows"]}
+    assert {"context", "add", "delete"} <= types
+
+
+def test_diff_endpoint_empty_when_clean(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    _commit_file(repo, "foo.txt", "first\n")
+    static = tmp_path / "static"
+    static.mkdir()
+
+    response = _repo_client(repo, static).get("/api/diff")
+
+    assert response.status_code == 200
+    assert response.json() == {"scope": "unstaged", "files": []}
+
+
+def test_diff_endpoint_not_a_repo_returns_400(tmp_path: Path) -> None:
+    not_repo = tmp_path / "plain"
+    not_repo.mkdir()
+    static = tmp_path / "static"
+    static.mkdir()
+
+    response = _repo_client(not_repo, static).get("/api/diff")
+
+    assert response.status_code == 400
