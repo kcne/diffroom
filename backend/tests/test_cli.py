@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from diffroom import __version__
 from diffroom.cli import app, mint_token, pick_port
+from diffroom.git.commands import NotARepositoryError
 
 runner = CliRunner()
 
@@ -52,3 +53,15 @@ def test_default_invocation_opens_browser_and_starts_server() -> None:
     assert result.exit_code == 0
     browser.assert_called_once()
     run.assert_called_once()
+
+
+def test_outside_repo_exits_1_without_starting_server() -> None:
+    with (
+        patch("diffroom.cli.run_server") as run,
+        patch("diffroom.cli.webbrowser.open") as browser,
+        patch("diffroom.cli.GitClient.repo_root", side_effect=NotARepositoryError("nope")),
+    ):
+        result = runner.invoke(app, ["--no-open"])
+    assert result.exit_code == 1
+    run.assert_not_called()
+    browser.assert_not_called()

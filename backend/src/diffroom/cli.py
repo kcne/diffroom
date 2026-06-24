@@ -10,6 +10,7 @@ import typer
 import uvicorn
 
 from . import __version__
+from .git.commands import GitClient, NotARepositoryError
 from .server import create_app
 
 HOST = "127.0.0.1"
@@ -51,6 +52,14 @@ def _root(
     """Open the DiffRoom review UI for the current repository."""
     if ctx.invoked_subcommand is not None:
         return
+    try:
+        GitClient().repo_root()
+    except NotARepositoryError:
+        typer.echo(
+            "Not a git repository. Run `diffroom` from inside a git working tree.",
+            err=True,
+        )
+        raise typer.Exit(1) from None
     chosen = pick_port(port)
     token = mint_token()
     url = f"http://{HOST}:{chosen}/?token={token}"

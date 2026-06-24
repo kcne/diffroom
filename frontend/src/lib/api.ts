@@ -3,6 +3,8 @@ import { getToken } from "./token";
 export interface Health {
   status: string;
   version: string;
+  repo_root: string;
+  branch: string;
 }
 
 /** Fetch wrapper that attaches the session token to every request. */

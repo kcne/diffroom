@@ -14,10 +14,18 @@ describe("App", () => {
 
   it("shows backend status and version from /api/health", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ status: "ok", version: "9.9.9" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          status: "ok",
+          version: "9.9.9",
+          repo_root: "/home/me/project",
+          branch: "main",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
 
     render(<App />);
@@ -25,6 +33,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByTestId("status")).toHaveTextContent("Backend: ok (v9.9.9)");
     });
+    expect(screen.getByTestId("repo")).toHaveTextContent("/home/me/project @ main");
   });
 
   it("shows an error when the health request fails", async () => {
