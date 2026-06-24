@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
+from .git.commands import GitClient
 
 DEFAULT_STATIC_DIR = Path(__file__).parent / "static"
 
@@ -23,20 +24,28 @@ _PLACEHOLDER_HTML = (
 def create_app(
     static_dir: Path | None = None,
     version: str = __version__,
+    git_client: GitClient | None = None,
 ) -> FastAPI:
     """Build the DiffRoom FastAPI app.
 
     Serves a JSON API under ``/api`` and the built single-page app for every
     other route (SPA fallback). ``static_dir`` defaults to the packaged
-    ``static`` directory populated by the frontend build.
+    ``static`` directory populated by the frontend build. ``git_client``
+    defaults to one rooted at the process working directory.
     """
     app = FastAPI(title="DiffRoom", version=version)
     static = static_dir if static_dir is not None else DEFAULT_STATIC_DIR
     index_file = static / "index.html"
+    git = git_client if git_client is not None else GitClient()
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "version": version}
+        return {
+            "status": "ok",
+            "version": version,
+            "repo_root": str(git.repo_root()),
+            "branch": git.current_branch(),
+        }
 
     assets_dir = static / "assets"
     if assets_dir.is_dir():

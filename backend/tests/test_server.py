@@ -6,7 +6,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 from diffroom import __version__
+from diffroom.git.commands import GitClient
 from diffroom.server import create_app
+
+
+class FakeGitClient(GitClient):
+    def __init__(self, repo_root: Path, branch: str) -> None:
+        self._repo_root = repo_root
+        self._branch = branch
+
+    def repo_root(self) -> Path:
+        return self._repo_root
+
+    def current_branch(self) -> str:
+        return self._branch
 
 
 @pytest.fixture
@@ -17,13 +30,19 @@ def static_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(static_dir: Path) -> TestClient:
-    return TestClient(create_app(static_dir=static_dir))
+    git_client = FakeGitClient(Path("/tmp/repo"), "main")
+    return TestClient(create_app(static_dir=static_dir, git_client=git_client))
 
 
-def test_health_returns_ok_and_version(client: TestClient) -> None:
+def test_health_reports_status_version_repo_root_and_branch(client: TestClient) -> None:
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": __version__}
+    assert response.json() == {
+        "status": "ok",
+        "version": __version__,
+        "repo_root": "/tmp/repo",
+        "branch": "main",
+    }
 
 
 def test_index_served(client: TestClient) -> None:
