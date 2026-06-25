@@ -5,3 +5,9 @@ pnpm-lock.yaml
 # Generated API contract (do not hand-format)
 openapi.json
 src/lib/api-types.ts
+
+# shadcn/ui generated files (kept as generated for easy updates)
+components.json
+src/index.css
+src/lib/utils.ts
+src/components/ui

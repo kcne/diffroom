@@ -10,6 +10,11 @@ const backend = process.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8765";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   build: {
     outDir: fileURLToPath(new URL("../backend/src/diffroom/static", import.meta.url)),
     emptyOutDir: true,
