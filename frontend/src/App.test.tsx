@@ -1,48 +1,61 @@
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DiffResponse } from "./lib/api";
+import { fetchDiff } from "./lib/api";
 import { App } from "./App";
 
-describe("App", () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-    window.history.replaceState({}, "", "/");
-  });
+vi.mock("./lib/api", () => ({ fetchDiff: vi.fn() }));
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("shows backend status and version from /api/health", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          status: "ok",
-          version: "9.9.9",
-          repo_root: "/home/me/project",
-          branch: "main",
-        }),
+const sample: DiffResponse = {
+  scope: "unstaged",
+  files: [
+    {
+      path: "src/app.ts",
+      old_path: "src/app.ts",
+      hunks: [
         {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
+          old_start: 1,
+          old_count: 1,
+          new_start: 1,
+          new_count: 2,
+          header: "",
+          rows: [
+            { old_line_no: 1, new_line_no: 1, type: "context", content: "before" },
+            { old_line_no: null, new_line_no: 2, type: "add", content: "changed line" },
+          ],
         },
-      ),
-    );
+      ],
+    },
+  ],
+};
 
-    render(<App />);
+function renderApp() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return render(<App />, { wrapper });
+}
 
-    await waitFor(() => {
-      expect(screen.getByTestId("status")).toHaveTextContent("Backend: ok (v9.9.9)");
-    });
-    expect(screen.getByTestId("repo")).toHaveTextContent("/home/me/project @ main");
+describe("App", () => {
+  afterEach(() => {
+    vi.resetAllMocks();
   });
 
-  it("shows an error when the health request fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 500 }));
+  it("renders the diff rows on success", async () => {
+    vi.mocked(fetchDiff).mockResolvedValue(sample);
+    renderApp();
 
-    render(<App />);
+    await waitFor(() => expect(screen.getByText("changed line")).toBeInTheDocument());
+    expect(screen.getByText("src/app.ts")).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(screen.getByTestId("error")).toBeInTheDocument();
-    });
+  it("shows an error alert when the diff request fails", async () => {
+    vi.mocked(fetchDiff).mockRejectedValue(new Error("nope"));
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
   });
 });

@@ -1,0 +1,2 @@
+# Collapse the lockfile in GitHub PR diffs (display-only; still tracked).
+frontend/pnpm-lock.yaml linguist-generated=true

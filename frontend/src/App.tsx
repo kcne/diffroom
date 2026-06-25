@@ -1,38 +1,35 @@
-import { useEffect, useState } from "react";
-import { fetchHealth, type Health } from "./lib/api";
-import { captureToken } from "./lib/token";
+import type { ReactNode } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DiffView } from "./diff/DiffView";
+import { useDiff } from "./diff/useDiff";
 
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, isError, error } = useDiff();
 
-  useEffect(() => {
-    captureToken();
-    fetchHealth()
-      .then(setHealth)
-      .catch((err: unknown) => setError(String(err)));
-  }, []);
+  let content: ReactNode = null;
+  if (isPending) {
+    content = (
+      <div data-slot="diff-loading" className="space-y-2" aria-busy="true">
+        <span className="text-sm text-muted-foreground">Loading diff…</span>
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  } else if (isError) {
+    content = (
+      <Alert variant="destructive" data-slot="diff-error">
+        <AlertTitle>Could not load the diff</AlertTitle>
+        <AlertDescription>{String(error)}</AlertDescription>
+      </Alert>
+    );
+  } else if (data) {
+    content = <DiffView diff={data} />;
+  }
 
   return (
-    <main className="mx-auto max-w-xl p-8 font-sans">
-      <h1 className="text-2xl font-bold">DiffRoom</h1>
-      {health ? (
-        <>
-          <p data-testid="status" className="mt-2 text-green-700">
-            Backend: {health.status} (v{health.version})
-          </p>
-          <p data-testid="repo" className="mt-1 text-sm text-gray-600">
-            {health.repo_root}
-            {health.branch ? ` @ ${health.branch}` : ""}
-          </p>
-        </>
-      ) : error ? (
-        <p data-testid="error" className="mt-2 text-red-700">
-          Error: {error}
-        </p>
-      ) : (
-        <p className="mt-2 text-gray-500">Connecting…</p>
-      )}
+    <main className="mx-auto max-w-4xl p-8">
+      <h1 className="mb-6 text-2xl font-bold">DiffRoom</h1>
+      {content}
     </main>
   );
 }
