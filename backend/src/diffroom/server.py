@@ -11,9 +11,20 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__
 from .git.commands import GitClient, NotARepositoryError
 from .git.diff_parser import parse_diff
-from .models import DiffResponse, to_diff_response
+from .models import (
+    DiffResponse,
+    ThreadCreate,
+    ThreadOut,
+    ThreadsResponse,
+    to_diff_response,
+    to_thread_out,
+    to_threads_response,
+)
+from .store import Store
 
 DEFAULT_STATIC_DIR = Path(__file__).parent / "static"
+
+UNSTAGED_SCOPE = "unstaged"
 
 _PLACEHOLDER_HTML = (
     "<!doctype html><html><head><title>DiffRoom</title></head>"
@@ -27,18 +38,26 @@ def create_app(
     static_dir: Path | None = None,
     version: str = __version__,
     git_client: GitClient | None = None,
+    store: Store | None = None,
 ) -> FastAPI:
     """Build the DiffRoom FastAPI app.
 
     Serves a JSON API under ``/api`` and the built single-page app for every
     other route (SPA fallback). ``static_dir`` defaults to the packaged
     ``static`` directory populated by the frontend build. ``git_client``
-    defaults to one rooted at the process working directory.
+    defaults to one rooted at the process working directory. ``store`` defaults
+    to one opened lazily per request at ``.git/diffroom/state.db`` under the
+    repo root.
     """
     app = FastAPI(title="DiffRoom", version=version)
     static = static_dir if static_dir is not None else DEFAULT_STATIC_DIR
     index_file = static / "index.html"
     git = git_client if git_client is not None else GitClient()
+
+    def resolve_store() -> Store:
+        if store is not None:
+            return store
+        return Store(git.repo_root() / ".git" / "diffroom" / "state.db")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -56,7 +75,29 @@ def create_app(
             raw = git.diff_unstaged()
         except NotARepositoryError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return to_diff_response("unstaged", parse_diff(raw))
+        return to_diff_response(UNSTAGED_SCOPE, parse_diff(raw))
+
+    @app.post("/api/threads", status_code=201)
+    def create_thread(payload: ThreadCreate) -> ThreadOut:
+        try:
+            thread = resolve_store().create_thread(
+                UNSTAGED_SCOPE,
+                payload.file_path,
+                payload.side,
+                payload.line,
+                payload.body,
+            )
+        except NotARepositoryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return to_thread_out(thread)
+
+    @app.get("/api/threads")
+    def list_threads() -> ThreadsResponse:
+        try:
+            threads = resolve_store().list_threads(UNSTAGED_SCOPE)
+        except NotARepositoryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return to_threads_response(UNSTAGED_SCOPE, threads)
 
     assets_dir = static / "assets"
     if assets_dir.is_dir():

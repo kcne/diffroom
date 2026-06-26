@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from diffroom.git.diff_parser import DiffFile, Hunk, Row, RowType
-from diffroom.models import DiffResponse, to_diff_response
+from diffroom.models import DiffResponse, ThreadsResponse, to_diff_response, to_threads_response
+from diffroom.store import Comment, Side, Thread
 
 
 def test_to_diff_response_maps_dataclasses_faithfully() -> None:
@@ -58,3 +59,53 @@ def test_row_type_serializes_to_string_value() -> None:
     )
     dumped = response.model_dump(mode="json")
     assert dumped["files"][0]["hunks"][0]["rows"][0]["type"] == "context"
+
+
+def test_to_threads_response_maps_dataclasses() -> None:
+    threads = [
+        Thread(
+            id=1,
+            scope="unstaged",
+            file_path="foo.py",
+            side=Side.NEW,
+            line=12,
+            created_at="2026-01-01T00:00:00+00:00",
+            comments=(Comment(id=1, body="needs a guard", created_at="2026-01-01T00:00:00+00:00"),),
+        )
+    ]
+
+    response = to_threads_response("unstaged", threads)
+
+    assert isinstance(response, ThreadsResponse)
+    assert response.scope == "unstaged"
+    assert len(response.threads) == 1
+    thread = response.threads[0]
+    assert thread.id == 1
+    assert thread.file_path == "foo.py"
+    assert thread.side is Side.NEW
+    assert thread.line == 12
+    assert thread.created_at == "2026-01-01T00:00:00+00:00"
+    assert len(thread.comments) == 1
+    assert thread.comments[0].body == "needs a guard"
+
+
+def test_to_threads_response_empty() -> None:
+    response = to_threads_response("unstaged", [])
+    assert response.scope == "unstaged"
+    assert response.threads == []
+
+
+def test_side_serializes_to_string_value() -> None:
+    threads = [
+        Thread(
+            id=1,
+            scope="unstaged",
+            file_path="a.py",
+            side=Side.OLD,
+            line=3,
+            created_at="2026-01-01T00:00:00+00:00",
+            comments=(Comment(id=1, body="x", created_at="2026-01-01T00:00:00+00:00"),),
+        )
+    ]
+    dumped = to_threads_response("unstaged", threads).model_dump(mode="json")
+    assert dumped["threads"][0]["side"] == "old"

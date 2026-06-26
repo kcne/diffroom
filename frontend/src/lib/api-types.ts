@@ -38,6 +38,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Threads */
+        get: operations["list_threads_api_threads_get"];
+        put?: never;
+        /** Create Thread */
+        post: operations["create_thread_api_threads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/{full_path}": {
         parameters: {
             query?: never;
@@ -59,6 +77,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * CommentOut
+         * @description One message in a thread.
+         */
+        CommentOut: {
+            /** Id */
+            id: number;
+            /** Body */
+            body: string;
+            /** Created At */
+            created_at: string;
+        };
         /**
          * DiffFile
          * @description A single file's section of a diff.
@@ -123,6 +153,54 @@ export interface components {
          * @enum {string}
          */
         RowType: "context" | "add" | "delete";
+        /**
+         * Side
+         * @description Which side of the diff a thread anchors to (deletes have only ``OLD``).
+         * @enum {string}
+         */
+        Side: "old" | "new";
+        /**
+         * ThreadCreate
+         * @description Request body for creating a single-line note.
+         */
+        ThreadCreate: {
+            /** File Path */
+            file_path: string;
+            side: components["schemas"]["Side"];
+            /** Line */
+            line: number;
+            /** Body */
+            body: string;
+        };
+        /**
+         * ThreadOut
+         * @description A note anchored to a single diff line, with its comments nested.
+         */
+        ThreadOut: {
+            /** Id */
+            id: number;
+            /** Scope */
+            scope: string;
+            /** File Path */
+            file_path: string;
+            side: components["schemas"]["Side"];
+            /** Line */
+            line: number;
+            /** Created At */
+            created_at: string;
+            /** Comments */
+            comments: components["schemas"]["CommentOut"][];
+        };
+        /**
+         * ThreadsResponse
+         * @description The review threads for one scope.
+         */
+        ThreadsResponse: {
+            /** Scope */
+            scope: string;
+            /** Threads */
+            threads: components["schemas"]["ThreadOut"][];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -183,6 +261,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiffResponse"];
+                };
+            };
+        };
+    };
+    list_threads_api_threads_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadsResponse"];
+                };
+            };
+        };
+    };
+    create_thread_api_threads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThreadCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

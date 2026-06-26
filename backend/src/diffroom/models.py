@@ -8,12 +8,27 @@ serializes and that drive TypeScript type generation.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .git import diff_parser
 from .git.diff_parser import RowType
+from .store import Side, Thread
 
-__all__ = ["Row", "Hunk", "DiffFile", "DiffResponse", "RowType", "to_diff_response"]
+__all__ = [
+    "Row",
+    "Hunk",
+    "DiffFile",
+    "DiffResponse",
+    "RowType",
+    "to_diff_response",
+    "Side",
+    "ThreadCreate",
+    "CommentOut",
+    "ThreadOut",
+    "ThreadsResponse",
+    "to_thread_out",
+    "to_threads_response",
+]
 
 
 class Row(BaseModel):
@@ -82,3 +97,60 @@ def to_diff_response(scope: str, files: list[diff_parser.DiffFile]) -> DiffRespo
             for file in files
         ],
     )
+
+
+class ThreadCreate(BaseModel):
+    """Request body for creating a single-line note."""
+
+    file_path: str = Field(min_length=1)
+    side: Side
+    line: int = Field(ge=1)
+    body: str = Field(min_length=1)
+
+
+class CommentOut(BaseModel):
+    """One message in a thread."""
+
+    id: int
+    body: str
+    created_at: str
+
+
+class ThreadOut(BaseModel):
+    """A note anchored to a single diff line, with its comments nested."""
+
+    id: int
+    scope: str
+    file_path: str
+    side: Side
+    line: int
+    created_at: str
+    comments: list[CommentOut]
+
+
+class ThreadsResponse(BaseModel):
+    """The review threads for one scope."""
+
+    scope: str
+    threads: list[ThreadOut]
+
+
+def to_thread_out(thread: Thread) -> ThreadOut:
+    """Convert a store :class:`~diffroom.store.Thread` into its API model."""
+    return ThreadOut(
+        id=thread.id,
+        scope=thread.scope,
+        file_path=thread.file_path,
+        side=thread.side,
+        line=thread.line,
+        created_at=thread.created_at,
+        comments=[
+            CommentOut(id=comment.id, body=comment.body, created_at=comment.created_at)
+            for comment in thread.comments
+        ],
+    )
+
+
+def to_threads_response(scope: str, threads: list[Thread]) -> ThreadsResponse:
+    """Convert store threads into a serializable :class:`ThreadsResponse`."""
+    return ThreadsResponse(scope=scope, threads=[to_thread_out(t) for t in threads])
