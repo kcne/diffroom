@@ -132,3 +132,124 @@ def test_diff_endpoint_not_a_repo_returns_400(tmp_path: Path) -> None:
     response = _repo_client(not_repo, static).get("/api/diff")
 
     assert response.status_code == 400
+
+
+def _threads_client(repo: Path, static_dir: Path) -> TestClient:
+    return TestClient(create_app(static_dir=static_dir, git_client=GitClient(repo)))
+
+
+def test_create_thread_returns_201_with_nested_comment(tmp_path: Path) -> None:
+    from diffroom.store import Store
+
+    static = tmp_path / "static"
+    static.mkdir()
+    store = Store(tmp_path / "state.db")
+    client = TestClient(
+        create_app(
+            static_dir=static, git_client=FakeGitClient(Path("/tmp/repo"), "main"), store=store
+        )
+    )
+
+    response = client.post(
+        "/api/threads",
+        json={"file_path": "foo.py", "side": "new", "line": 12, "body": "needs a guard"},
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["id"] >= 1
+    assert body["scope"] == "unstaged"
+    assert body["file_path"] == "foo.py"
+    assert body["side"] == "new"
+    assert body["line"] == 12
+    assert body["created_at"]
+    assert len(body["comments"]) == 1
+    assert body["comments"][0]["body"] == "needs a guard"
+
+
+def test_create_then_list_threads_round_trip(tmp_path: Path) -> None:
+    from diffroom.store import Store
+
+    static = tmp_path / "static"
+    static.mkdir()
+    store = Store(tmp_path / "state.db")
+    client = TestClient(
+        create_app(
+            static_dir=static, git_client=FakeGitClient(Path("/tmp/repo"), "main"), store=store
+        )
+    )
+    client.post(
+        "/api/threads",
+        json={"file_path": "a.py", "side": "new", "line": 1, "body": "first"},
+    )
+
+    response = client.get("/api/threads")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scope"] == "unstaged"
+    assert len(body["threads"]) == 1
+    assert body["threads"][0]["comments"][0]["body"] == "first"
+
+
+def test_list_threads_empty(tmp_path: Path) -> None:
+    from diffroom.store import Store
+
+    static = tmp_path / "static"
+    static.mkdir()
+    store = Store(tmp_path / "state.db")
+    client = TestClient(
+        create_app(
+            static_dir=static, git_client=FakeGitClient(Path("/tmp/repo"), "main"), store=store
+        )
+    )
+
+    response = client.get("/api/threads")
+
+    assert response.status_code == 200
+    assert response.json() == {"scope": "unstaged", "threads": []}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"side": "new", "line": 1, "body": "x"},
+        {"file_path": "a.py", "side": "new", "line": 1},
+        {"file_path": "a.py", "side": "new", "line": 0, "body": "x"},
+        {"file_path": "a.py", "side": "sideways", "line": 1, "body": "x"},
+        {"file_path": "", "side": "new", "line": 1, "body": "x"},
+        {"file_path": "a.py", "side": "new", "line": 1, "body": ""},
+    ],
+)
+def test_create_thread_invalid_body_returns_422(tmp_path: Path, payload: dict) -> None:
+    from diffroom.store import Store
+
+    static = tmp_path / "static"
+    static.mkdir()
+    store = Store(tmp_path / "state.db")
+    client = TestClient(
+        create_app(
+            static_dir=static, git_client=FakeGitClient(Path("/tmp/repo"), "main"), store=store
+        )
+    )
+
+    response = client.post("/api/threads", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_threads_not_a_repo_returns_400(tmp_path: Path) -> None:
+    not_repo = tmp_path / "plain"
+    not_repo.mkdir()
+    static = tmp_path / "static"
+    static.mkdir()
+    client = _threads_client(not_repo, static)
+
+    post = client.post(
+        "/api/threads",
+        json={"file_path": "a.py", "side": "new", "line": 1, "body": "x"},
+    )
+    get = client.get("/api/threads")
+
+    assert post.status_code == 400
+    assert get.status_code == 400
