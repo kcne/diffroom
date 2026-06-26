@@ -53,11 +53,15 @@ def create_app(
     static = static_dir if static_dir is not None else DEFAULT_STATIC_DIR
     index_file = static / "index.html"
     git = git_client if git_client is not None else GitClient()
+    stores: dict[Path, Store] = {}
 
     def resolve_store() -> Store:
         if store is not None:
             return store
-        return Store(git.repo_root() / ".git" / "diffroom" / "state.db")
+        path = git.repo_root() / ".git" / "diffroom" / "state.db"
+        if path not in stores:
+            stores[path] = Store(path)
+        return stores[path]
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
