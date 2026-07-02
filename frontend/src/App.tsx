@@ -3,9 +3,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiffView } from "./diff/DiffView";
 import { useDiff } from "./diff/useDiff";
+import { useCreateThread, useThreads } from "./diff/useThreads";
+import type { Anchor } from "./diff/anchor";
 
 export function App() {
   const { data, isPending, isError, error } = useDiff();
+  const threads = useThreads();
+  const createThread = useCreateThread();
+
+  async function onSubmit(anchor: Anchor, body: string) {
+    await createThread.mutateAsync({ ...anchor, body });
+  }
 
   let content: ReactNode = null;
   if (isPending) {
@@ -23,7 +31,7 @@ export function App() {
       </Alert>
     );
   } else if (data) {
-    content = <DiffView diff={data} />;
+    content = <DiffView diff={data} threads={threads.data?.threads ?? []} onSubmit={onSubmit} />;
   }
 
   return (
