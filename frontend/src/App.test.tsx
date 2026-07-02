@@ -1,12 +1,16 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DiffResponse } from "./lib/api";
-import { fetchDiff } from "./lib/api";
+import type { DiffResponse, ThreadOut, ThreadsResponse } from "./lib/api";
+import { createThread, fetchDiff, fetchThreads } from "./lib/api";
 import { App } from "./App";
 
-vi.mock("./lib/api", () => ({ fetchDiff: vi.fn() }));
+vi.mock("./lib/api", () => ({
+  fetchDiff: vi.fn(),
+  fetchThreads: vi.fn(),
+  createThread: vi.fn(),
+}));
 
 const sample: DiffResponse = {
   scope: "unstaged",
@@ -31,6 +35,8 @@ const sample: DiffResponse = {
   ],
 };
 
+const emptyThreads: ThreadsResponse = { scope: "unstaged", threads: [] };
+
 function renderApp() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -46,6 +52,7 @@ describe("App", () => {
 
   it("renders the diff rows on success", async () => {
     vi.mocked(fetchDiff).mockResolvedValue(sample);
+    vi.mocked(fetchThreads).mockResolvedValue(emptyThreads);
     renderApp();
 
     await waitFor(() => expect(screen.getByText("changed line")).toBeInTheDocument());
@@ -54,8 +61,40 @@ describe("App", () => {
 
   it("shows an error alert when the diff request fails", async () => {
     vi.mocked(fetchDiff).mockRejectedValue(new Error("nope"));
+    vi.mocked(fetchThreads).mockResolvedValue(emptyThreads);
     renderApp();
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+  });
+
+  it("creates a thread with the clicked row's anchor and body", async () => {
+    vi.mocked(fetchDiff).mockResolvedValue(sample);
+    vi.mocked(fetchThreads).mockResolvedValue(emptyThreads);
+    const created: ThreadOut = {
+      id: 1,
+      scope: "unstaged",
+      file_path: "src/app.ts",
+      side: "new",
+      line: 2,
+      created_at: "2024-01-01T00:00:00+00:00",
+      comments: [{ id: 1, body: "please fix", created_at: "2024-01-01T00:00:00+00:00" }],
+    };
+    vi.mocked(createThread).mockResolvedValue(created);
+    renderApp();
+
+    await waitFor(() => expect(screen.getByText("changed line")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /add a note on line 2/i }));
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "please fix" } });
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+
+    await waitFor(() =>
+      expect(createThread).toHaveBeenCalledWith({
+        file_path: "src/app.ts",
+        side: "new",
+        line: 2,
+        body: "please fix",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByLabelText("Note")).not.toBeInTheDocument());
   });
 });
